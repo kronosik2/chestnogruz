@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>ЧестноГруз — заказ грузчиков без посредников</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         .tab-active {
             border-bottom-width: 2px;
@@ -19,14 +18,13 @@
             transform: translateY(-2px);
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
         }
-        .modal {
-            transition: opacity 0.2s ease;
-        }
     </style>
 </head>
 <body class="bg-gray-50 font-sans antialiased">
 
+    <!-- ОСНОВНОЙ КОНТЕНТ (виден после входа) -->
     <div id="appContent" class="max-w-3xl mx-auto px-4 py-6 pb-20 hidden">
+        <!-- ШАПКА -->
         <div class="flex justify-between items-center mb-6">
             <div class="flex items-center space-x-2">
                 <span class="text-2xl">🤝</span>
@@ -39,37 +37,40 @@
             </button>
         </div>
 
+        <!-- ТАБЫ -->
         <div class="flex border-b border-gray-200 mb-6">
             <button id="tabCreate" class="flex-1 py-3 text-center font-medium text-gray-500 tab-active transition">Создать заявку</button>
             <button id="tabOrders" class="flex-1 py-3 text-center font-medium text-gray-500 transition">Мои заявки</button>
         </div>
 
+        <!-- КОНТЕЙНЕР ДЛЯ КОНТЕНТА -->
         <div id="content">
             <div class="text-center py-10 text-gray-400">Загрузка...</div>
         </div>
     </div>
 
-    <div id="profileModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden modal">
+    <!-- МОДАЛ ПРОФИЛЯ -->
+    <div id="profileModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
         <div class="bg-white rounded-2xl w-11/12 max-w-md p-6 relative">
             <button id="closeModal" class="absolute top-3 right-4 text-gray-400 text-2xl">&times;</button>
             <h2 class="text-xl font-bold mb-4">Ваш профиль</h2>
             <div class="space-y-3">
                 <div><span class="font-medium">Телефон:</span> <span id="profilePhone"></span></div>
                 <div><span class="font-medium">Имя:</span> <span id="profileName"></span></div>
-                <div><span class="font-medium">Рейтинг:</span> <span id="profileRating">—</span></div>
+                <div><span class="font-medium">Рейтинг:</span> <span id="profileRating">5.0</span></div>
                 <div class="pt-2 border-t"><span class="font-medium text-red-600">Долг:</span> <span id="profileDebt" class="text-red-600 font-bold">0 ₽</span></div>
                 <button id="logoutBtn" class="mt-4 w-full bg-gray-200 py-2 rounded-lg text-gray-700">Выйти из аккаунта</button>
             </div>
         </div>
     </div>
 
-    <!-- МОДАЛКА АВТОРИЗАЦИИ (ЗАГЛУШКА SMS) -->
-    <div id="authModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 modal">
+    <!-- МОДАЛ АВТОРИЗАЦИИ (ПРОСТАЯ РАБОЧАЯ ВЕРСИЯ) -->
+    <div id="authModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
         <div class="bg-white rounded-2xl w-11/12 max-w-md p-6">
             <div class="text-center mb-6">
                 <span class="text-4xl">🤝</span>
                 <h2 class="text-xl font-bold mt-2">ЧестноГруз</h2>
-                <p class="text-gray-500 text-sm">Вход по телефону (тестовый режим)</p>
+                <p class="text-gray-500 text-sm">Вход по телефону</p>
             </div>
             
             <div id="authPhoneStep">
@@ -85,21 +86,18 @@
             </div>
 
             <div id="authError" class="text-red-500 text-sm text-center mt-3 hidden"></div>
-            <p class="text-xs text-gray-400 text-center mt-4">Вход означает согласие с <a href="#" id="offerLinkAuth" class="text-orange-500">офертой</a></p>
+            <p class="text-xs text-gray-400 text-center mt-4">Вход означает согласие с офертой</p>
         </div>
     </div>
 
     <script>
-        // ========== НАСТРОЙКИ SUPABASE (ЗАМЕНИТЬ НА СВОИ!) ==========
-        const SUPABASE_URL = 'https://ivcyfesmatauphiflitn.supabase.co';
-        const SUPABASE_ANON_KEY = 'sb_publishable_vvCmbHarhj33E7mZ0c_Sxw_Hy9XEfHI';
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-        // Глобальные переменные
+        // ========== ХРАНИЛИЩЕ ДАННЫХ (заглушка вместо Supabase) ==========
         let currentUser = null;
-        let currentSupabaseUser = null;
         let currentTab = 'create';
-        let pendingPhone = '';
+        
+        // Простая база в памяти (для демо)
+        let orders = [];
+        let users = [];
 
         // DOM элементы
         const appContent = document.getElementById('appContent');
@@ -112,128 +110,65 @@
         const closeModal = document.getElementById('closeModal');
         const logoutBtn = document.getElementById('logoutBtn');
 
-        // ========== ЗАГЛУШКА АВТОРИЗАЦИИ (всегда код 123456) ==========
-        
-        function sendOTP() {
+        // ========== АВТОРИЗАЦИЯ ==========
+        function sendCode() {
             const phone = document.getElementById('phoneInput').value.trim();
             if (!phone) {
                 showAuthError('Введите номер телефона');
                 return;
             }
-            pendingPhone = phone;
-            showAuthError('');
+            
+            // Сохраняем телефон
+            currentUser = { phone: phone, name: 'Клиент', debt: 0, rating: 5.0 };
             
             // Переключаем на ввод кода
             document.getElementById('authPhoneStep').classList.add('hidden');
             document.getElementById('authCodeStep').classList.remove('hidden');
-            showAuthError('✅ Тестовый код: 123456');
+            showAuthError('✅ Код отправлен (тестовый: 123456)');
         }
 
-        async function verifyOTP() {
+        function verifyCode() {
             const code = document.getElementById('codeInput').value.trim();
-            if (!code) {
-                showAuthError('Введите код подтверждения');
-                return;
-            }
-            
-            // Проверяем тестовый код
-            if (code !== '123456') {
-                showAuthError('Неверный код. Попробуйте 123456');
-                return;
-            }
-            
-            showAuthError('⏳ Вход...');
-            
-            // Создаём фейкового пользователя в Supabase Auth (через signUp с поддельными данными)
-            // Для теста используем email как заглушку, но показываем пользователю телефон
-            const fakeEmail = `user_${pendingPhone.replace(/[^0-9]/g, '')}@temp.chestnogruz.ru`;
-            
-            try {
-                // Пытаемся войти или создать пользователя
-                let { data, error } = await supabase.auth.signUp({
-                    email: fakeEmail,
-                    password: '12345678', // простой пароль для теста
-                });
-                
-                if (error && error.message.includes('already registered')) {
-                    // Если пользователь уже есть, входим
-                    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-                        email: fakeEmail,
-                        password: '12345678',
-                    });
-                    if (signInError) throw signInError;
-                    currentSupabaseUser = signInData.user;
-                } else if (error) {
-                    throw error;
-                } else {
-                    currentSupabaseUser = data.user;
-                }
-                
-                // Создаём или получаем пользователя в таблице users
-                await ensureUserInDB();
-                
-                // Закрываем модалку
+            if (code === '123456') {
+                // Вход выполнен
                 authModal.classList.add('hidden');
                 appContent.classList.remove('hidden');
-                
-                await loadUserData();
-                await loadContentByTab();
-                
-            } catch (error) {
-                console.error('Auth error:', error);
-                showAuthError('Ошибка входа: ' + error.message);
+                renderProfileInfo();
+                loadContentByTab();
+            } else {
+                showAuthError('❌ Неверный код. Попробуйте 123456');
             }
         }
 
-        async function ensureUserInDB() {
-            const { data: existing, error: fetchError } = await supabase
-                .from('users')
-                .select('*')
-                .eq('id', currentSupabaseUser.id)
-                .maybeSingle();
-            
-            if (existing) {
-                currentUser = existing;
-                return;
-            }
-            
-            // Создаём нового пользователя
-            const { data: newUser, error: insertError } = await supabase
-                .from('users')
-                .insert({
-                    id: currentSupabaseUser.id,
-                    phone: pendingPhone,
-                    name: 'Клиент',
-                    debt: 0,
-                    rating: 0
-                })
-                .select()
-                .single();
-            
-            if (!insertError && newUser) {
-                currentUser = newUser;
+        function backToPhone() {
+            document.getElementById('authCodeStep').classList.add('hidden');
+            document.getElementById('authPhoneStep').classList.remove('hidden');
+            document.getElementById('codeInput').value = '';
+            showAuthError('');
+        }
+
+        function showAuthError(msg) {
+            const errorDiv = document.getElementById('authError');
+            errorDiv.textContent = msg;
+            errorDiv.classList.remove('hidden');
+            if (msg.includes('✅')) {
+                errorDiv.classList.add('text-green-500');
+                errorDiv.classList.remove('text-red-500');
+            } else {
+                errorDiv.classList.add('text-red-500');
+                errorDiv.classList.remove('text-green-500');
             }
         }
 
-        async function loadUserData() {
-            if (!currentSupabaseUser) return;
-            
-            const { data, error } = await supabase
-                .from('users')
-                .select('*')
-                .eq('id', currentSupabaseUser.id)
-                .single();
-            
-            if (!error && data) {
-                currentUser = data;
-            }
-            renderProfileInfo();
+        function renderProfileInfo() {
+            if (!currentUser) return;
+            document.getElementById('profilePhone').innerText = currentUser.phone;
+            document.getElementById('profileName').innerText = currentUser.name;
+            document.getElementById('profileDebt').innerText = currentUser.debt + ' ₽';
         }
 
-        async function logout() {
-            await supabase.auth.signOut();
+        function logout() {
             currentUser = null;
-            currentSupabaseUser = null;
             appContent.classList.add('hidden');
             authModal.classList.remove('hidden');
             document.getElementById('authPhoneStep').classList.remove('hidden');
@@ -242,27 +177,8 @@
             document.getElementById('codeInput').value = '';
         }
 
-        function showAuthError(msg) {
-            const errorDiv = document.getElementById('authError');
-            errorDiv.textContent = msg;
-            errorDiv.classList.remove('hidden');
-            if (!msg || msg.includes('✅')) {
-                // не прячем, но меняем цвет
-                if (msg.includes('✅')) errorDiv.classList.add('text-green-500');
-                else errorDiv.classList.remove('text-green-500');
-            }
-        }
-
-        function renderProfileInfo() {
-            if (!currentUser) return;
-            document.getElementById('profilePhone').innerText = currentUser.phone || '—';
-            document.getElementById('profileName').innerText = currentUser.name || 'Клиент';
-            document.getElementById('profileRating').innerText = currentUser.rating || '5.0';
-            document.getElementById('profileDebt').innerText = (currentUser.debt || 0) + ' ₽';
-        }
-
         // ========== ФОРМА СОЗДАНИЯ ЗАЯВКИ ==========
-        async function renderCreateForm() {
+        function renderCreateForm() {
             contentDiv.innerHTML = `
                 <form id="orderForm" class="space-y-5 bg-white p-5 rounded-xl shadow-sm">
                     <div>
@@ -293,17 +209,17 @@
                     </div>
                     <div class="flex items-start">
                         <input type="checkbox" id="offerAccepted" required class="mt-1 mr-2">
-                        <label class="text-sm text-gray-600">Я принимаю условия <a href="#" id="offerLink" class="text-orange-500">оферты</a> и соглашаюсь оплатить 50₽ за каждого грузчика после выполнения заказа.</label>
+                        <label class="text-sm text-gray-600">Я принимаю условия оферты и соглашаюсь оплатить 50₽ за каждого грузчика после выполнения заказа.</label>
                     </div>
                     <button type="submit" class="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 rounded-xl transition">Создать заказ</button>
                 </form>
                 <div class="mt-4 text-center text-xs text-gray-400">После создания заказа мы уведомим грузчиков. Оплата — после выполнения.</div>
             `;
 
-            document.getElementById('orderForm').addEventListener('submit', async (e) => {
+            document.getElementById('orderForm').addEventListener('submit', (e) => {
                 e.preventDefault();
-                const orderData = {
-                    user_id: currentUser.id,
+                const newOrder = {
+                    id: Math.random().toString(36).substr(2, 8),
                     city: document.getElementById('city').value,
                     address: document.getElementById('address').value,
                     date: document.getElementById('date').value,
@@ -311,54 +227,33 @@
                     грузчиков: parseInt(document.getElementById('workers').value),
                     comment: document.getElementById('comment').value,
                     status: 'new',
-                    offer_accepted: true,
                     created_at: new Date().toISOString()
                 };
-                
-                const { error } = await supabase.from('orders').insert(orderData);
-                if (error) alert('Ошибка: ' + error.message);
-                else {
-                    alert('Заказ создан!');
-                    document.getElementById('orderForm').reset();
-                    currentTab = 'orders';
-                    updateTabUI();
-                    await renderOrdersList();
-                }
-            });
-            
-            document.getElementById('offerLink').addEventListener('click', (e) => {
-                e.preventDefault();
-                alert('Оферта: вы соглашаетесь оплатить 50₽ за каждого грузчика после выполнения заказа.');
+                orders.unshift(newOrder);
+                alert('Заказ создан!');
+                document.getElementById('orderForm').reset();
+                currentTab = 'orders';
+                updateTabUI();
+                renderOrdersList();
             });
         }
 
         // ========== ЛЕНТА ЗАЯВОК ==========
-        async function renderOrdersList() {
-            contentDiv.innerHTML = '<div class="text-center py-10">Загрузка...</div>';
-            const { data: orders, error } = await supabase
-                .from('orders')
-                .select('*')
-                .eq('user_id', currentUser.id)
-                .order('created_at', { ascending: false });
-            
-            if (error || !orders || orders.length === 0) {
+        function renderOrdersList() {
+            if (orders.length === 0) {
                 contentDiv.innerHTML = '<div class="bg-white rounded-xl p-8 text-center text-gray-400">У вас пока нет заявок. Создайте первую!</div>';
                 return;
             }
-            
-            const active = orders.filter(o => o.status === 'new' || o.status === 'active');
-            const completed = orders.filter(o => o.status !== 'new' && o.status !== 'active');
-            const sorted = [...active, ...completed];
-            
+
             let html = '<div class="space-y-4">';
-            for (let order of sorted) {
+            for (let order of orders) {
                 const isActive = order.status === 'new' || order.status === 'active';
                 const statusText = order.status === 'new' ? '🔍 Ищем' : (order.status === 'active' ? '⚡ В работе' : '✅ Выполнен');
                 const statusColor = order.status === 'new' ? 'text-blue-600 bg-blue-50' : (order.status === 'active' ? 'text-orange-600 bg-orange-50' : 'text-green-600 bg-green-50');
                 html += `
                     <div class="order-card bg-white rounded-xl p-4 shadow-sm border-l-4 ${isActive ? 'border-orange-400' : 'border-gray-200'}">
                         <div class="flex justify-between items-start mb-2">
-                            <span class="font-bold">Заказ #${order.id.slice(0,6)}</span>
+                            <span class="font-bold">Заказ #${order.id}</span>
                             <span class="text-xs px-2 py-1 rounded-full ${statusColor}">${statusText}</span>
                         </div>
                         <div class="text-sm text-gray-600">
@@ -389,9 +284,12 @@
             }
         }
 
-        async function loadContentByTab() {
-            if (currentTab === 'create') await renderCreateForm();
-            else await renderOrdersList();
+        function loadContentByTab() {
+            if (currentTab === 'create') {
+                renderCreateForm();
+            } else {
+                renderOrdersList();
+            }
         }
 
         // ========== СОБЫТИЯ ==========
@@ -400,47 +298,32 @@
             updateTabUI();
             loadContentByTab();
         });
+        
         tabOrdersBtn.addEventListener('click', () => {
             currentTab = 'orders';
             updateTabUI();
             loadContentByTab();
         });
+
         profileBtn.addEventListener('click', () => {
             renderProfileInfo();
             profileModal.classList.remove('hidden');
         });
+        
         closeModal.addEventListener('click', () => profileModal.classList.add('hidden'));
+        
         logoutBtn.addEventListener('click', () => {
             logout();
             profileModal.classList.add('hidden');
         });
+        
         profileModal.addEventListener('click', (e) => {
             if (e.target === profileModal) profileModal.classList.add('hidden');
         });
-        
-        document.getElementById('sendCodeBtn').addEventListener('click', sendOTP);
-        document.getElementById('verifyCodeBtn').addEventListener('click', verifyOTP);
-        document.getElementById('backToPhoneBtn').addEventListener('click', () => {
-            document.getElementById('authPhoneStep').classList.remove('hidden');
-            document.getElementById('authCodeStep').classList.add('hidden');
-            showAuthError('');
-        });
-        document.getElementById('offerLinkAuth').addEventListener('click', (e) => {
-            e.preventDefault();
-            alert('Оферта: оплата 50₽ за грузчика после выполнения заказа.');
-        });
-        
-        // Проверка существующей сессии
-        supabase.auth.getSession().then(async ({ data: { session } }) => {
-            if (session?.user) {
-                currentSupabaseUser = session.user;
-                await ensureUserInDB();
-                await loadUserData();
-                authModal.classList.add('hidden');
-                appContent.classList.remove('hidden');
-                await loadContentByTab();
-            }
-        });
+
+        document.getElementById('sendCodeBtn').addEventListener('click', sendCode);
+        document.getElementById('verifyCodeBtn').addEventListener('click', verifyCode);
+        document.getElementById('backToPhoneBtn').addEventListener('click', backToPhone);
     </script>
 </body>
 </html>
