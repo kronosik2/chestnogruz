@@ -26,9 +26,7 @@
 </head>
 <body class="bg-gray-50 font-sans antialiased">
 
-    <!-- Основной контент (показывается только после авторизации) -->
     <div id="appContent" class="max-w-3xl mx-auto px-4 py-6 pb-20 hidden">
-        <!-- ШАПКА -->
         <div class="flex justify-between items-center mb-6">
             <div class="flex items-center space-x-2">
                 <span class="text-2xl">🤝</span>
@@ -41,19 +39,16 @@
             </button>
         </div>
 
-        <!-- ТАБЫ -->
         <div class="flex border-b border-gray-200 mb-6">
             <button id="tabCreate" class="flex-1 py-3 text-center font-medium text-gray-500 tab-active transition">Создать заявку</button>
             <button id="tabOrders" class="flex-1 py-3 text-center font-medium text-gray-500 transition">Мои заявки</button>
         </div>
 
-        <!-- КОНТЕЙНЕР ДЛЯ КОНТЕНТА -->
         <div id="content">
             <div class="text-center py-10 text-gray-400">Загрузка...</div>
         </div>
     </div>
 
-    <!-- МОДАЛ ПРОФИЛЯ -->
     <div id="profileModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden modal">
         <div class="bg-white rounded-2xl w-11/12 max-w-md p-6 relative">
             <button id="closeModal" class="absolute top-3 right-4 text-gray-400 text-2xl">&times;</button>
@@ -68,22 +63,23 @@
         </div>
     </div>
 
-    <!-- МОДАЛ АВТОРИЗАЦИИ (показывается первым) -->
+    <!-- МОДАЛКА АВТОРИЗАЦИИ (ЗАГЛУШКА SMS) -->
     <div id="authModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 modal">
         <div class="bg-white rounded-2xl w-11/12 max-w-md p-6">
             <div class="text-center mb-6">
                 <span class="text-4xl">🤝</span>
                 <h2 class="text-xl font-bold mt-2">ЧестноГруз</h2>
-                <p class="text-gray-500 text-sm">Вход по номеру телефона</p>
+                <p class="text-gray-500 text-sm">Вход по телефону (тестовый режим)</p>
             </div>
             
             <div id="authPhoneStep">
                 <input type="tel" id="phoneInput" placeholder="+7 999 123-45-67" class="w-full border border-gray-300 rounded-lg px-4 py-3 mb-4 text-center text-lg">
                 <button id="sendCodeBtn" class="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 rounded-xl transition">Получить код</button>
+                <p class="text-xs text-gray-400 text-center mt-3">📱 Тестовый код: <span class="font-mono font-bold">123456</span></p>
             </div>
 
             <div id="authCodeStep" class="hidden">
-                <input type="text" id="codeInput" placeholder="Введите код из SMS" class="w-full border border-gray-300 rounded-lg px-4 py-3 mb-4 text-center text-lg">
+                <input type="text" id="codeInput" placeholder="Введите код" class="w-full border border-gray-300 rounded-lg px-4 py-3 mb-4 text-center text-lg">
                 <button id="verifyCodeBtn" class="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 rounded-xl transition">Подтвердить</button>
                 <button id="backToPhoneBtn" class="w-full mt-2 text-gray-500 text-sm">Изменить номер</button>
             </div>
@@ -116,8 +112,9 @@
         const closeModal = document.getElementById('closeModal');
         const logoutBtn = document.getElementById('logoutBtn');
 
-        // ========== АВТОРИЗАЦИЯ ==========
-        async function sendOTP() {
+        // ========== ЗАГЛУШКА АВТОРИЗАЦИИ (всегда код 123456) ==========
+        
+        function sendOTP() {
             const phone = document.getElementById('phoneInput').value.trim();
             if (!phone) {
                 showAuthError('Введите номер телефона');
@@ -126,23 +123,10 @@
             pendingPhone = phone;
             showAuthError('');
             
-            // Нормализуем номер (убираем пробелы, скобки, дефисы)
-            const cleanPhone = phone.replace(/[\s\-\(\)]/g, '');
-            
-            try {
-                const { error } = await supabase.auth.signInWithOtp({
-                    phone: cleanPhone,
-                });
-                
-                if (error) throw error;
-                
-                // Переключаем на ввод кода
-                document.getElementById('authPhoneStep').classList.add('hidden');
-                document.getElementById('authCodeStep').classList.remove('hidden');
-                showAuthError('Код отправлен!');
-            } catch (error) {
-                showAuthError(error.message);
-            }
+            // Переключаем на ввод кода
+            document.getElementById('authPhoneStep').classList.add('hidden');
+            document.getElementById('authCodeStep').classList.remove('hidden');
+            showAuthError('✅ Тестовый код: 123456');
         }
 
         async function verifyOTP() {
@@ -152,32 +136,52 @@
                 return;
             }
             
-            const cleanPhone = pendingPhone.replace(/[\s\-\(\)]/g, '');
+            // Проверяем тестовый код
+            if (code !== '123456') {
+                showAuthError('Неверный код. Попробуйте 123456');
+                return;
+            }
+            
+            showAuthError('⏳ Вход...');
+            
+            // Создаём фейкового пользователя в Supabase Auth (через signUp с поддельными данными)
+            // Для теста используем email как заглушку, но показываем пользователю телефон
+            const fakeEmail = `user_${pendingPhone.replace(/[^0-9]/g, '')}@temp.chestnogruz.ru`;
             
             try {
-                const { data, error } = await supabase.auth.verifyOtp({
-                    phone: cleanPhone,
-                    token: code,
-                    type: 'sms'
+                // Пытаемся войти или создать пользователя
+                let { data, error } = await supabase.auth.signUp({
+                    email: fakeEmail,
+                    password: '12345678', // простой пароль для теста
                 });
                 
-                if (error) throw error;
-                
-                // Авторизация успешна
-                currentSupabaseUser = data.user;
+                if (error && error.message.includes('already registered')) {
+                    // Если пользователь уже есть, входим
+                    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+                        email: fakeEmail,
+                        password: '12345678',
+                    });
+                    if (signInError) throw signInError;
+                    currentSupabaseUser = signInData.user;
+                } else if (error) {
+                    throw error;
+                } else {
+                    currentSupabaseUser = data.user;
+                }
                 
                 // Создаём или получаем пользователя в таблице users
                 await ensureUserInDB();
                 
-                // Закрываем модалку авторизации
+                // Закрываем модалку
                 authModal.classList.add('hidden');
                 appContent.classList.remove('hidden');
                 
-                // Загружаем данные
                 await loadUserData();
                 await loadContentByTab();
+                
             } catch (error) {
-                showAuthError('Неверный код. Попробуйте ещё раз.');
+                console.error('Auth error:', error);
+                showAuthError('Ошибка входа: ' + error.message);
             }
         }
 
@@ -188,32 +192,26 @@
                 .eq('id', currentSupabaseUser.id)
                 .maybeSingle();
             
-            if (fetchError && fetchError.code !== 'PGRST116') {
-                console.error('Ошибка проверки пользователя:', fetchError);
+            if (existing) {
+                currentUser = existing;
                 return;
             }
             
-            if (!existing) {
-                // Создаём нового пользователя
-                const { data: newUser, error: insertError } = await supabase
-                    .from('users')
-                    .insert({
-                        id: currentSupabaseUser.id,
-                        phone: currentSupabaseUser.phone,
-                        name: 'Клиент',
-                        debt: 0,
-                        rating: 0
-                    })
-                    .select()
-                    .single();
-                
-                if (insertError) {
-                    console.error('Ошибка создания пользователя:', insertError);
-                } else {
-                    currentUser = newUser;
-                }
-            } else {
-                currentUser = existing;
+            // Создаём нового пользователя
+            const { data: newUser, error: insertError } = await supabase
+                .from('users')
+                .insert({
+                    id: currentSupabaseUser.id,
+                    phone: pendingPhone,
+                    name: 'Клиент',
+                    debt: 0,
+                    rating: 0
+                })
+                .select()
+                .single();
+            
+            if (!insertError && newUser) {
+                currentUser = newUser;
             }
         }
 
@@ -248,7 +246,11 @@
             const errorDiv = document.getElementById('authError');
             errorDiv.textContent = msg;
             errorDiv.classList.remove('hidden');
-            if (!msg) errorDiv.classList.add('hidden');
+            if (!msg || msg.includes('✅')) {
+                // не прячем, но меняем цвет
+                if (msg.includes('✅')) errorDiv.classList.add('text-green-500');
+                else errorDiv.classList.remove('text-green-500');
+            }
         }
 
         function renderProfileInfo() {
@@ -265,7 +267,7 @@
                 <form id="orderForm" class="space-y-5 bg-white p-5 rounded-xl shadow-sm">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Город</label>
-                        <input type="text" id="city" required class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-orange-400 focus:border-orange-400">
+                        <input type="text" id="city" required class="w-full border border-gray-300 rounded-lg px-4 py-2">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Адрес</label>
@@ -286,117 +288,97 @@
                         <input type="number" id="workers" min="1" max="10" value="2" required class="w-full border border-gray-300 rounded-lg px-4 py-2">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Комментарий (необязательно)</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Комментарий</label>
                         <textarea id="comment" rows="2" class="w-full border border-gray-300 rounded-lg px-4 py-2"></textarea>
                     </div>
                     <div class="flex items-start">
                         <input type="checkbox" id="offerAccepted" required class="mt-1 mr-2">
                         <label class="text-sm text-gray-600">Я принимаю условия <a href="#" id="offerLink" class="text-orange-500">оферты</a> и соглашаюсь оплатить 50₽ за каждого грузчика после выполнения заказа.</label>
                     </div>
-                    <button type="submit" class="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 rounded-xl transition">Создать заказ (бесплатно)</button>
+                    <button type="submit" class="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 rounded-xl transition">Создать заказ</button>
                 </form>
                 <div class="mt-4 text-center text-xs text-gray-400">После создания заказа мы уведомим грузчиков. Оплата — после выполнения.</div>
             `;
 
             document.getElementById('orderForm').addEventListener('submit', async (e) => {
                 e.preventDefault();
-                const city = document.getElementById('city').value;
-                const address = document.getElementById('address').value;
-                const date = document.getElementById('date').value;
-                const time = document.getElementById('time').value;
-                const грузчиков = parseInt(document.getElementById('workers').value);
-                const comment = document.getElementById('comment').value;
-                const offerAccepted = document.getElementById('offerAccepted').checked;
-
-                if (!offerAccepted) {
-                    alert('Необходимо принять условия оферты');
-                    return;
-                }
-
-                const { data, error } = await supabase.from('orders').insert({
+                const orderData = {
                     user_id: currentUser.id,
-                    city, address, date, time,
-                    грузчиков,
-                    comment,
+                    city: document.getElementById('city').value,
+                    address: document.getElementById('address').value,
+                    date: document.getElementById('date').value,
+                    time: document.getElementById('time').value,
+                    грузчиков: parseInt(document.getElementById('workers').value),
+                    comment: document.getElementById('comment').value,
                     status: 'new',
                     offer_accepted: true,
                     created_at: new Date().toISOString()
-                }).select();
-
-                if (error) {
-                    alert('Ошибка: ' + error.message);
-                } else {
-                    alert('Заказ создан! Грузчики уже получили уведомление.');
+                };
+                
+                const { error } = await supabase.from('orders').insert(orderData);
+                if (error) alert('Ошибка: ' + error.message);
+                else {
+                    alert('Заказ создан!');
                     document.getElementById('orderForm').reset();
                     currentTab = 'orders';
                     updateTabUI();
                     await renderOrdersList();
                 }
             });
-
+            
             document.getElementById('offerLink').addEventListener('click', (e) => {
                 e.preventDefault();
-                alert('Оферта: вы соглашаетесь оплатить 50₽ за каждого грузчика после успешного выполнения заказа. При неоплате заказы блокируются.');
+                alert('Оферта: вы соглашаетесь оплатить 50₽ за каждого грузчика после выполнения заказа.');
             });
         }
 
         // ========== ЛЕНТА ЗАЯВОК ==========
         async function renderOrdersList() {
-            contentDiv.innerHTML = '<div class="text-center py-10 text-gray-500">Загрузка...</div>';
-            
+            contentDiv.innerHTML = '<div class="text-center py-10">Загрузка...</div>';
             const { data: orders, error } = await supabase
                 .from('orders')
                 .select('*')
                 .eq('user_id', currentUser.id)
                 .order('created_at', { ascending: false });
-
+            
             if (error || !orders || orders.length === 0) {
                 contentDiv.innerHTML = '<div class="bg-white rounded-xl p-8 text-center text-gray-400">У вас пока нет заявок. Создайте первую!</div>';
                 return;
             }
-
-            const activeOrders = orders.filter(o => o.status === 'new' || o.status === 'active');
-            const completedOrders = orders.filter(o => o.status !== 'new' && o.status !== 'active');
-            const sortedOrders = [...activeOrders, ...completedOrders];
-
-            let html = `<div class="space-y-4">`;
-            for (let order of sortedOrders) {
-                const isActive = (order.status === 'new' || order.status === 'active');
-                const statusText = order.status === 'new' ? '🔍 Ищем грузчиков' : (order.status === 'active' ? '⚡ В работе' : '✅ Выполнен');
+            
+            const active = orders.filter(o => o.status === 'new' || o.status === 'active');
+            const completed = orders.filter(o => o.status !== 'new' && o.status !== 'active');
+            const sorted = [...active, ...completed];
+            
+            let html = '<div class="space-y-4">';
+            for (let order of sorted) {
+                const isActive = order.status === 'new' || order.status === 'active';
+                const statusText = order.status === 'new' ? '🔍 Ищем' : (order.status === 'active' ? '⚡ В работе' : '✅ Выполнен');
                 const statusColor = order.status === 'new' ? 'text-blue-600 bg-blue-50' : (order.status === 'active' ? 'text-orange-600 bg-orange-50' : 'text-green-600 bg-green-50');
-                const createdDate = new Date(order.created_at).toLocaleDateString('ru-RU');
-                
                 html += `
                     <div class="order-card bg-white rounded-xl p-4 shadow-sm border-l-4 ${isActive ? 'border-orange-400' : 'border-gray-200'}">
                         <div class="flex justify-between items-start mb-2">
-                            <span class="font-bold text-gray-800">Заказ #${order.id.slice(0,6)}</span>
+                            <span class="font-bold">Заказ #${order.id.slice(0,6)}</span>
                             <span class="text-xs px-2 py-1 rounded-full ${statusColor}">${statusText}</span>
                         </div>
-                        <div class="text-sm text-gray-600 space-y-1 mt-2">
-                            <div>📍 ${order.city}, ${order.address}</div>
-                            <div>📅 ${order.date} в ${order.time}</div>
-                            <div>👥 ${order.грузчиков} грузчика</div>
-                            ${order.comment ? `<div>📝 ${order.comment}</div>` : ''}
+                        <div class="text-sm text-gray-600">
+                            📍 ${order.city}, ${order.address}<br>
+                            📅 ${order.date} в ${order.time}<br>
+                            👥 ${order.грузчиков} грузчика
+                            ${order.comment ? `<br>📝 ${order.comment}` : ''}
                         </div>
-                        <div class="flex justify-between items-center mt-3 text-xs text-gray-400">
-                            <span>Создан: ${createdDate}</span>
-                            ${order.status === 'completed' ? `<button class="text-orange-500 font-medium payDebtBtn" data-order-id="${order.id}" data-amount="${order.грузчиков * 50}">💰 Оплатить ${order.грузчиков * 50}₽</button>` : ''}
-                        </div>
+                        ${order.status === 'completed' ? `<div class="mt-3 text-right"><button class="text-orange-500 payDebtBtn" data-amount="${order.грузчиков * 50}">💰 Оплатить ${order.грузчиков * 50}₽</button></div>` : ''}
                     </div>
                 `;
             }
-            html += `</div>`;
+            html += '</div>';
             contentDiv.innerHTML = html;
-
+            
             document.querySelectorAll('.payDebtBtn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    const amount = btn.getAttribute('data-amount');
-                    alert(`🚧 Оплата ${amount}₽ через ЮKassa будет подключена позже. Сейчас демо-режим.`);
-                });
+                btn.addEventListener('click', () => alert('Оплата через ЮKassa будет позже. Сейчас демо.'));
             });
         }
 
-        // ========== ОБНОВЛЕНИЕ ИНТЕРФЕЙСА ==========
         function updateTabUI() {
             if (currentTab === 'create') {
                 tabCreateBtn.classList.add('tab-active');
@@ -408,11 +390,8 @@
         }
 
         async function loadContentByTab() {
-            if (currentTab === 'create') {
-                await renderCreateForm();
-            } else {
-                await renderOrdersList();
-            }
+            if (currentTab === 'create') await renderCreateForm();
+            else await renderOrdersList();
         }
 
         // ========== СОБЫТИЯ ==========
@@ -421,29 +400,24 @@
             updateTabUI();
             loadContentByTab();
         });
-        
         tabOrdersBtn.addEventListener('click', () => {
             currentTab = 'orders';
             updateTabUI();
             loadContentByTab();
         });
-
         profileBtn.addEventListener('click', () => {
             renderProfileInfo();
             profileModal.classList.remove('hidden');
         });
-        
         closeModal.addEventListener('click', () => profileModal.classList.add('hidden'));
-        
         logoutBtn.addEventListener('click', () => {
             logout();
             profileModal.classList.add('hidden');
         });
-        
         profileModal.addEventListener('click', (e) => {
             if (e.target === profileModal) profileModal.classList.add('hidden');
         });
-
+        
         document.getElementById('sendCodeBtn').addEventListener('click', sendOTP);
         document.getElementById('verifyCodeBtn').addEventListener('click', verifyOTP);
         document.getElementById('backToPhoneBtn').addEventListener('click', () => {
@@ -453,10 +427,10 @@
         });
         document.getElementById('offerLinkAuth').addEventListener('click', (e) => {
             e.preventDefault();
-            alert('Оферта: вы соглашаетесь оплатить 50₽ за каждого грузчика после успешного выполнения заказа.');
+            alert('Оферта: оплата 50₽ за грузчика после выполнения заказа.');
         });
-
-        // Проверяем, есть ли уже активная сессия при загрузке
+        
+        // Проверка существующей сессии
         supabase.auth.getSession().then(async ({ data: { session } }) => {
             if (session?.user) {
                 currentSupabaseUser = session.user;
@@ -465,9 +439,6 @@
                 authModal.classList.add('hidden');
                 appContent.classList.remove('hidden');
                 await loadContentByTab();
-            } else {
-                authModal.classList.remove('hidden');
-                appContent.classList.add('hidden');
             }
         });
     </script>
