@@ -18,13 +18,16 @@
             transform: translateY(-2px);
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
         }
+        .workers-btn-active {
+            background-color: #f59e0b;
+            color: white;
+            border-color: #f59e0b;
+        }
     </style>
 </head>
 <body class="bg-gray-50 font-sans antialiased">
 
-    <!-- ОСНОВНОЙ КОНТЕНТ (виден после входа) -->
     <div id="appContent" class="max-w-3xl mx-auto px-4 py-6 pb-20 hidden">
-        <!-- ШАПКА -->
         <div class="flex justify-between items-center mb-6">
             <div class="flex items-center space-x-2">
                 <span class="text-2xl">🤝</span>
@@ -37,19 +40,16 @@
             </button>
         </div>
 
-        <!-- ТАБЫ -->
         <div class="flex border-b border-gray-200 mb-6">
             <button id="tabCreate" class="flex-1 py-3 text-center font-medium text-gray-500 tab-active transition">Создать заявку</button>
             <button id="tabOrders" class="flex-1 py-3 text-center font-medium text-gray-500 transition">Мои заявки</button>
         </div>
 
-        <!-- КОНТЕЙНЕР ДЛЯ КОНТЕНТА -->
         <div id="content">
             <div class="text-center py-10 text-gray-400">Загрузка...</div>
         </div>
     </div>
 
-    <!-- МОДАЛ ПРОФИЛЯ -->
     <div id="profileModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
         <div class="bg-white rounded-2xl w-11/12 max-w-md p-6 relative">
             <button id="closeModal" class="absolute top-3 right-4 text-gray-400 text-2xl">&times;</button>
@@ -64,7 +64,6 @@
         </div>
     </div>
 
-    <!-- МОДАЛ АВТОРИЗАЦИИ (ПРОСТАЯ РАБОЧАЯ ВЕРСИЯ) -->
     <div id="authModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
         <div class="bg-white rounded-2xl w-11/12 max-w-md p-6">
             <div class="text-center mb-6">
@@ -91,15 +90,10 @@
     </div>
 
     <script>
-        // ========== ХРАНИЛИЩЕ ДАННЫХ (заглушка вместо Supabase) ==========
         let currentUser = null;
         let currentTab = 'create';
-        
-        // Простая база в памяти (для демо)
         let orders = [];
-        let users = [];
 
-        // DOM элементы
         const appContent = document.getElementById('appContent');
         const authModal = document.getElementById('authModal');
         const contentDiv = document.getElementById('content');
@@ -110,18 +104,37 @@
         const closeModal = document.getElementById('closeModal');
         const logoutBtn = document.getElementById('logoutBtn');
 
-        // ========== АВТОРИЗАЦИЯ ==========
+        // Telegram бот (замени на свой токен и chat_id)
+        const TELEGRAM_BOT_TOKEN = 'YOUR_BOT_TOKEN';  // ← сюда токен бота
+        const TELEGRAM_CHAT_ID = 'YOUR_CHAT_ID';     // ← сюда ID группы или твоего чата
+
+        async function sendToTelegram(orderText) {
+            if (TELEGRAM_BOT_TOKEN === 'YOUR_BOT_TOKEN') {
+                console.log('Telegram не настроен. Заказ:', orderText);
+                return;
+            }
+            try {
+                await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        chat_id: TELEGRAM_CHAT_ID,
+                        text: orderText,
+                        parse_mode: 'HTML'
+                    })
+                });
+            } catch (error) {
+                console.error('Ошибка отправки в Telegram:', error);
+            }
+        }
+
         function sendCode() {
             const phone = document.getElementById('phoneInput').value.trim();
             if (!phone) {
                 showAuthError('Введите номер телефона');
                 return;
             }
-            
-            // Сохраняем телефон
             currentUser = { phone: phone, name: 'Клиент', debt: 0, rating: 5.0 };
-            
-            // Переключаем на ввод кода
             document.getElementById('authPhoneStep').classList.add('hidden');
             document.getElementById('authCodeStep').classList.remove('hidden');
             showAuthError('✅ Код отправлен (тестовый: 123456)');
@@ -130,7 +143,6 @@
         function verifyCode() {
             const code = document.getElementById('codeInput').value.trim();
             if (code === '123456') {
-                // Вход выполнен
                 authModal.classList.add('hidden');
                 appContent.classList.remove('hidden');
                 renderProfileInfo();
@@ -177,7 +189,6 @@
             document.getElementById('codeInput').value = '';
         }
 
-        // ========== ФОРМА СОЗДАНИЯ ЗАЯВКИ ==========
         function renderCreateForm() {
             contentDiv.innerHTML = `
                 <form id="orderForm" class="space-y-5 bg-white p-5 rounded-xl shadow-sm">
@@ -189,56 +200,144 @@
                         <label class="block text-sm font-medium text-gray-700 mb-1">Адрес</label>
                         <input type="text" id="address" required class="w-full border border-gray-300 rounded-lg px-4 py-2">
                     </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Количество грузчиков</label>
+                        <div class="flex gap-3">
+                            <button type="button" data-workers="1" class="workers-btn flex-1 py-2 border border-gray-300 rounded-lg hover:bg-orange-100 transition">1</button>
+                            <button type="button" data-workers="2" class="workers-btn flex-1 py-2 border border-gray-300 rounded-lg hover:bg-orange-100 transition">2</button>
+                            <button type="button" data-workers="3" class="workers-btn flex-1 py-2 border border-gray-300 rounded-lg hover:bg-orange-100 transition">3</button>
+                            <button type="button" data-workers="4" class="workers-btn flex-1 py-2 border border-gray-300 rounded-lg hover:bg-orange-100 transition">4</button>
+                        </div>
+                        <input type="hidden" id="workers" value="2">
+                    </div>
+
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Дата</label>
-                            <input type="date" id="date" required class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                            <input type="date" id="date" class="w-full border border-gray-300 rounded-lg px-4 py-2">
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Время</label>
-                            <input type="time" id="time" required class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                            <input type="time" id="time" class="w-full border border-gray-300 rounded-lg px-4 py-2">
                         </div>
                     </div>
+
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Количество грузчиков</label>
-                        <input type="number" id="workers" min="1" max="10" value="2" required class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                        <button type="button" id="asapBtn" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2 rounded-xl transition border border-gray-300">
+                            🚀 На ближайшее время
+                        </button>
+                        <p class="text-xs text-gray-400 mt-1">Заблокирует выбор даты и времени</p>
                     </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Ставка (₽/час за 1 грузчика)</label>
+                        <input type="number" id="rate" value="400" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                        <p class="text-xs text-gray-400 mt-1">Рекомендуемая ставка: 400₽/час</p>
+                    </div>
+
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Комментарий</label>
                         <textarea id="comment" rows="2" class="w-full border border-gray-300 rounded-lg px-4 py-2"></textarea>
                     </div>
+
                     <div class="flex items-start">
                         <input type="checkbox" id="offerAccepted" required class="mt-1 mr-2">
                         <label class="text-sm text-gray-600">Я принимаю условия оферты и соглашаюсь оплатить 50₽ за каждого грузчика после выполнения заказа.</label>
                     </div>
+
                     <button type="submit" class="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 rounded-xl transition">Создать заказ</button>
                 </form>
-                <div class="mt-4 text-center text-xs text-gray-400">После создания заказа мы уведомим грузчиков. Оплата — после выполнения.</div>
             `;
 
-            document.getElementById('orderForm').addEventListener('submit', (e) => {
+            // Кнопки выбора грузчиков
+            const workersBtns = document.querySelectorAll('.workers-btn');
+            const workersInput = document.getElementById('workers');
+            workersBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    workersBtns.forEach(b => b.classList.remove('workers-btn-active', 'bg-orange-500', 'text-white'));
+                    btn.classList.add('workers-btn-active', 'bg-orange-500', 'text-white');
+                    workersInput.value = btn.getAttribute('data-workers');
+                });
+            });
+            // Активируем кнопку "2" по умолчанию
+            document.querySelector('.workers-btn[data-workers="2"]').classList.add('workers-btn-active', 'bg-orange-500', 'text-white');
+
+            // Кнопка "На ближайшее время"
+            const asapBtn = document.getElementById('asapBtn');
+            const dateInput = document.getElementById('date');
+            const timeInput = document.getElementById('time');
+            let asapMode = false;
+            asapBtn.addEventListener('click', () => {
+                asapMode = !asapMode;
+                if (asapMode) {
+                    dateInput.disabled = true;
+                    timeInput.disabled = true;
+                    dateInput.value = '';
+                    timeInput.value = '';
+                    asapBtn.classList.add('bg-orange-500', 'text-white', 'border-orange-500');
+                    asapBtn.classList.remove('bg-gray-100', 'text-gray-700');
+                } else {
+                    dateInput.disabled = false;
+                    timeInput.disabled = false;
+                    asapBtn.classList.remove('bg-orange-500', 'text-white', 'border-orange-500');
+                    asapBtn.classList.add('bg-gray-100', 'text-gray-700');
+                }
+            });
+
+            document.getElementById('orderForm').addEventListener('submit', async (e) => {
                 e.preventDefault();
+                
+                const city = document.getElementById('city').value;
+                const address = document.getElementById('address').value;
+                const грузчиков = parseInt(document.getElementById('workers').value);
+                const rate = parseInt(document.getElementById('rate').value);
+                const comment = document.getElementById('comment').value;
+                const isAsap = dateInput.disabled;
+                const date = isAsap ? 'сегодня' : dateInput.value;
+                const time = isAsap ? 'в ближайшее время' : timeInput.value;
+                
+                if (!city || !address) {
+                    alert('Заполните город и адрес');
+                    return;
+                }
+                if (!document.getElementById('offerAccepted').checked) {
+                    alert('Примите условия оферты');
+                    return;
+                }
+
+                const orderText = `
+🆕 <b>НОВЫЙ ЗАКАЗ</b>
+👤 Клиент: ${currentUser.phone}
+📍 ${city}, ${address}
+📅 ${date} ${time}
+👥 ${грузчиков} грузчика
+💰 Ставка: ${rate} ₽/час за грузчика
+📝 Комментарий: ${comment || '—'}
+🕐 Создан: ${new Date().toLocaleString()}
+                `.trim();
+
+                await sendToTelegram(orderText);
+
                 const newOrder = {
                     id: Math.random().toString(36).substr(2, 8),
-                    city: document.getElementById('city').value,
-                    address: document.getElementById('address').value,
-                    date: document.getElementById('date').value,
-                    time: document.getElementById('time').value,
-                    грузчиков: parseInt(document.getElementById('workers').value),
-                    comment: document.getElementById('comment').value,
+                    city, address, date, time, грузчиков, rate, comment,
                     status: 'new',
                     created_at: new Date().toISOString()
                 };
                 orders.unshift(newOrder);
-                alert('Заказ создан!');
+                alert('Заказ отправлен грузчикам!');
                 document.getElementById('orderForm').reset();
+                document.getElementById('workers').value = '2';
+                document.querySelector('.workers-btn[data-workers="2"]').classList.add('workers-btn-active', 'bg-orange-500', 'text-white');
+                document.getElementById('rate').value = '400';
+                if (asapMode) asapBtn.click();
                 currentTab = 'orders';
                 updateTabUI();
                 renderOrdersList();
             });
         }
 
-        // ========== ЛЕНТА ЗАЯВОК ==========
         function renderOrdersList() {
             if (orders.length === 0) {
                 contentDiv.innerHTML = '<div class="bg-white rounded-xl p-8 text-center text-gray-400">У вас пока нет заявок. Создайте первую!</div>';
@@ -258,9 +357,9 @@
                         </div>
                         <div class="text-sm text-gray-600">
                             📍 ${order.city}, ${order.address}<br>
-                            📅 ${order.date} в ${order.time}<br>
-                            👥 ${order.грузчиков} грузчика
-                            ${order.comment ? `<br>📝 ${order.comment}` : ''}
+                            📅 ${order.date} ${order.time}<br>
+                            👥 ${order.грузчиков} грузчика • 💰 ${order.rate}₽/час<br>
+                            ${order.comment ? `📝 ${order.comment}` : ''}
                         </div>
                         ${order.status === 'completed' ? `<div class="mt-3 text-right"><button class="text-orange-500 payDebtBtn" data-amount="${order.грузчиков * 50}">💰 Оплатить ${order.грузчиков * 50}₽</button></div>` : ''}
                     </div>
@@ -292,7 +391,6 @@
             }
         }
 
-        // ========== СОБЫТИЯ ==========
         tabCreateBtn.addEventListener('click', () => {
             currentTab = 'create';
             updateTabUI();
