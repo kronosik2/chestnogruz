@@ -1,4 +1,3 @@
-aiogram==2.25
-supabase==2.13.0
-httpx==0.24.1
-pydantic==2.5.0
+aiogram
+supabase
+httpx
