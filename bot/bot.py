@@ -1,12 +1,13 @@
 import asyncio
-import os
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 from datetime import datetime
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command
 from supabase import create_client, Client
 
-# ========== НАСТРОЙКИ (ЗАМЕНИ НА СВОИ!) ==========
+# ========== НАСТРОЙКИ (ЗАМЕНИ НА СВОИ, ЕСЛИ НЕ СОВПАДАЮТ) ==========
 SUPABASE_URL = "https://ivcyfesmatauphiflitn.supabase.co"
 SUPABASE_KEY = "sb_publishable_vvCmbHarhj33E7mZ0c_Sxw_Hy9XEfHI"
 TELEGRAM_BOT_TOKEN = "8727111036:AAEtREM0b27n7m6Ue9jUKQYhPnD4Pz2iF88"
@@ -88,7 +89,6 @@ def get_order(order_id: str):
 def create_response(order_id: str, worker_telegram_id: int):
     """Создать отклик на заказ"""
     try:
-        # Сначала получаем worker_id из users
         user = get_user_by_telegram_id(worker_telegram_id)
         if not user:
             return None
@@ -209,8 +209,7 @@ async def handle_contact(message: types.Message):
     phone = contact.phone_number
     name = contact.first_name
     
-    # Сохраняем временные данные (ждём город)
-    # Используем кэш в памяти для простоты
+    # Сохраняем временные данные
     if not hasattr(handle_contact, "temp_users"):
         handle_contact.temp_users = {}
     handle_contact.temp_users[message.from_user.id] = {"phone": phone, "name": name}
@@ -249,7 +248,6 @@ async def handle_city(message: types.Message):
             f"Теперь вы можете получать заказы.",
             reply_markup=get_main_keyboard()
         )
-        # Очищаем временные данные
         del handle_contact.temp_users[message.from_user.id]
     else:
         await message.answer("❌ Ошибка регистрации. Попробуйте позже.")
@@ -322,7 +320,7 @@ async def show_my_orders(message: types.Message):
     
     if history:
         history_text = "📜 *История выполненных заказов:*\n\n"
-        for resp in history[:5]:  # Показываем последние 5
+        for resp in history[:5]:
             order = resp.get("orders", {})
             history_text += f"✅ {order.get('date', '—')} — {order.get('city', '—')}, {order.get('address', '—')}\n"
         await message.answer(history_text, parse_mode="Markdown")
@@ -355,7 +353,6 @@ async def show_profile(message: types.Message):
 @dp.message(lambda message: message.text == "📩 Входящие")
 async def show_inbox(message: types.Message):
     """Показать входящие (технические сообщения)"""
-    # Здесь будут уведомления об одобрении заказов и другие системные сообщения
     await message.answer(
         "📬 *Входящие*\n\n"
         "Здесь будут появляться уведомления:\n"
@@ -368,7 +365,7 @@ async def show_inbox(message: types.Message):
 
 @dp.message(lambda message: message.text and not message.text.startswith("/"))
 async def handle_free_text(message: types.Message):
-    """Обработка свободного текста (для города "Другой")"""
+    """Обработка свободного текста (для города 'Другой')"""
     user = get_user_by_telegram_id(message.from_user.id)
     if user:
         await message.answer("Используйте кнопки меню.", reply_markup=get_main_keyboard())
@@ -403,7 +400,6 @@ async def respond_to_order(callback: types.CallbackQuery):
     """Откликнуться на заказ"""
     order_id = callback.data.split("_")[1]
     
-    # Создаём отклик
     result = create_response(order_id, callback.from_user.id)
     
     if result:
@@ -441,6 +437,25 @@ async def logout(callback: types.CallbackQuery):
     await callback.message.answer("👋 До свидания! Для входа используйте /start")
     await callback.answer()
 
+# ========== HTTP-СЕРВЕР ДЛЯ RENDER ==========
+
+class HealthCheckHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == '/health':
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b'Bot is running')
+        else:
+            self.send_response(404)
+            self.end_headers()
+    
+    def log_message(self, format, *args):
+        pass  # Отключаем логи HTTP-сервера
+
+def run_http_server():
+    server = HTTPServer(('0.0.0.0', 10000), HealthCheckHandler)
+    server.serve_forever()
+
 # ========== ЗАПУСК БОТА ==========
 
 async def main():
@@ -448,4 +463,8 @@ async def main():
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
+    # Запускаем HTTP-сервер в фоновом потоке для Render
+    http_thread = threading.Thread(target=run_http_server, daemon=True)
+    http_thread.start()
+    # Запускаем бота
     asyncio.run(main())
