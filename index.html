@@ -90,6 +90,11 @@
     </div>
 
     <script>
+        // ========== НАСТРОЙКИ TELEGRAM (ТВОИ ДАННЫЕ) ==========
+        const TELEGRAM_BOT_TOKEN = '8727111036:AAEtREM0b27n7m6Ue9jUKQYhPnD4Pz2iF88';
+        const TELEGRAM_CHAT_ID = '8727111036';
+        // =====================================================
+
         let currentUser = null;
         let currentTab = 'create';
         let orders = [];
@@ -104,18 +109,10 @@
         const closeModal = document.getElementById('closeModal');
         const logoutBtn = document.getElementById('logoutBtn');
 
-        // Telegram бот (замени на свой токен и chat_id)
-        const TELEGRAM_BOT_TOKEN = '8727111036:AAEtREM0b27n7m6Ue9jUKQYhPnD4Pz2iF88
-';  // ← сюда токен бота
-        const TELEGRAM_CHAT_ID = '8727111036';     // ← сюда ID группы или твоего чата
-
+        // ========== ОТПРАВКА В TELEGRAM ==========
         async function sendToTelegram(orderText) {
-            if (TELEGRAM_BOT_TOKEN === 'YOUR_BOT_TOKEN') {
-                console.log('Telegram не настроен. Заказ:', orderText);
-                return;
-            }
             try {
-                await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+                const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -124,11 +121,18 @@
                         parse_mode: 'HTML'
                     })
                 });
+                const result = await response.json();
+                if (!result.ok) {
+                    console.error('Telegram API error:', result);
+                } else {
+                    console.log('Заказ отправлен в Telegram');
+                }
             } catch (error) {
                 console.error('Ошибка отправки в Telegram:', error);
             }
         }
 
+        // ========== АВТОРИЗАЦИЯ (ТЕСТОВАЯ) ==========
         function sendCode() {
             const phone = document.getElementById('phoneInput').value.trim();
             if (!phone) {
@@ -190,6 +194,7 @@
             document.getElementById('codeInput').value = '';
         }
 
+        // ========== ФОРМА СОЗДАНИЯ ЗАЯВКИ ==========
         function renderCreateForm() {
             contentDiv.innerHTML = `
                 <form id="orderForm" class="space-y-5 bg-white p-5 rounded-xl shadow-sm">
@@ -249,6 +254,7 @@
 
                     <button type="submit" class="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 rounded-xl transition">Создать заказ</button>
                 </form>
+                <div class="mt-4 text-center text-xs text-gray-400">После создания заказа мы уведомим грузчиков. Оплата — после выполнения.</div>
             `;
 
             // Кнопки выбора грузчиков
@@ -261,7 +267,6 @@
                     workersInput.value = btn.getAttribute('data-workers');
                 });
             });
-            // Активируем кнопку "2" по умолчанию
             document.querySelector('.workers-btn[data-workers="2"]').classList.add('workers-btn-active', 'bg-orange-500', 'text-white');
 
             // Кнопка "На ближайшее время"
@@ -327,7 +332,7 @@
                     created_at: new Date().toISOString()
                 };
                 orders.unshift(newOrder);
-                alert('Заказ отправлен грузчикам!');
+                alert('✅ Заказ отправлен грузчикам!');
                 document.getElementById('orderForm').reset();
                 document.getElementById('workers').value = '2';
                 document.querySelector('.workers-btn[data-workers="2"]').classList.add('workers-btn-active', 'bg-orange-500', 'text-white');
@@ -339,6 +344,7 @@
             });
         }
 
+        // ========== ЛЕНТА ЗАЯВОК ==========
         function renderOrdersList() {
             if (orders.length === 0) {
                 contentDiv.innerHTML = '<div class="bg-white rounded-xl p-8 text-center text-gray-400">У вас пока нет заявок. Создайте первую!</div>';
@@ -370,7 +376,7 @@
             contentDiv.innerHTML = html;
             
             document.querySelectorAll('.payDebtBtn').forEach(btn => {
-                btn.addEventListener('click', () => alert('Оплата через ЮKassa будет позже. Сейчас демо.'));
+                btn.addEventListener('click', () => alert('🚧 Оплата через ЮKassa будет позже. Сейчас демо.'));
             });
         }
 
@@ -392,6 +398,7 @@
             }
         }
 
+        // ========== СОБЫТИЯ ==========
         tabCreateBtn.addEventListener('click', () => {
             currentTab = 'create';
             updateTabUI();
